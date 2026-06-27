@@ -101,6 +101,7 @@
 /* ── Input ────────────────────────────────────────────── */
 .input-row {
   display: flex;
+  align-items: flex-end; /* Add button stays pinned to bottom as textarea grows */
   gap: 10px;
   margin-bottom: 28px;
 }
@@ -115,6 +116,12 @@
   font-size: 14px;
   color: var(--text-primary);
   outline: none;
+  /* textarea resets */
+  resize: none;
+  overflow: hidden;     /* no scrollbar while growing */
+  min-height: 50px;     /* matches the original single-line height */
+  line-height: 1.55;
+  display: block;
   transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
 }
 
@@ -226,7 +233,7 @@
 /* ── Todo Item ────────────────────────────────────────── */
 .todo-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* top-align so checkbox/actions sit at the first line */
   gap: 14px;
   padding: 14px 16px;
   background: var(--bg-card);
@@ -235,7 +242,7 @@
   transition: background var(--transition), border-color var(--transition), transform var(--transition), box-shadow var(--transition);
   animation: slideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) both;
   position: relative;
-  overflow: hidden;
+  /* no overflow:hidden — replaced by border-left for the accent bar */
 }
 
 @keyframes slideIn {
@@ -255,10 +262,11 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 3px;
   background: transparent;
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 3px 3px 0;
   transition: background var(--transition);
+  /* Works fine without overflow:hidden because the bar is inside border-radius */
 }
 
 .todo-item:hover {
@@ -319,17 +327,20 @@
 /* ── Todo Text ────────────────────────────────────────── */
 .todo-text-wrap {
   flex: 1;
-  min-width: 0;
+  min-width: 0;   /* critical — lets flex child shrink below content size */
+  padding-top: 1px; /* optical alignment with the checkbox circle */
 }
 
 .todo-text {
   font-size: 14px;
   font-weight: 400;
+  line-height: 1.55;
   color: var(--text-primary);
   transition: color var(--transition), text-decoration var(--transition);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Allow full wrapping — no truncation */
+  white-space: pre-wrap;   /* preserves intentional line breaks too */
+  word-break: break-word;  /* breaks very long unspaced strings */
+  overflow-wrap: anywhere;
 }
 
 .todo-edit-input {
@@ -340,9 +351,14 @@
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 400;
+  line-height: 1.55;
   color: var(--text-primary);
   border-bottom: 1px solid var(--accent);
   padding-bottom: 2px;
+  resize: none;        /* hide the resize handle — height is auto-grown in JS */
+  overflow: hidden;    /* prevent scrollbar flash during resize */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* ── Item Actions ─────────────────────────────────────── */
@@ -352,6 +368,7 @@
   opacity: 0;
   transition: opacity var(--transition);
   flex-shrink: 0;
+  padding-top: 1px; /* optical alignment with first text line */
 }
 
 .todo-item:hover .item-actions {
@@ -502,9 +519,10 @@
 
 /* ── Scrollable list ──────────────────────────────────── */
 .todo-list-wrapper {
-  max-height: 420px;
+  /* Taller viewport — each item can now be multi-line */
+  max-height: 60vh;
   overflow-y: auto;
-  padding-right: 2px;
+  padding-right: 4px;
 }
 
 /* ── Responsive ───────────────────────────────────────── */

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   getTodos,
   addTodo,
@@ -10,20 +10,42 @@ import {
 import MouseSmoke from "./MouseSmoke";
 import "./App.css";
 
+
+
 // ── TodoItem Component ──────────────────────────────────
 function TodoItem({ todo, onToggle, onDelete, onEdit }) {
   const [editing, setEditing] = useState(false);
   const [editVal, setEditVal] = useState(todo.title);
+  const editRef = useRef(null);
+
+  // Auto-grow the edit textarea
+  const growEditArea = () => {
+    const el = editRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  };
+
+  useEffect(() => {
+    if (editing) {
+      growEditArea();
+      editRef.current?.focus();
+      // place cursor at end
+      const len = editRef.current?.value.length ?? 0;
+      editRef.current?.setSelectionRange(len, len);
+    }
+  }, [editing]);
 
   const commitEdit = () => {
-    if (editVal.trim() && editVal !== todo.title) {
+    if (editVal.trim() && editVal.trim() !== todo.title) {
       onEdit(todo.id, todo, editVal.trim());
     }
     setEditing(false);
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") commitEdit();
+    // Shift+Enter = newline inside textarea; plain Enter = commit
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitEdit(); }
     if (e.key === "Escape") { setEditVal(todo.title); setEditing(false); }
   };
 
@@ -39,11 +61,12 @@ function TodoItem({ todo, onToggle, onDelete, onEdit }) {
       {/* Text / Edit */}
       <div className="todo-text-wrap">
         {editing ? (
-          <input
+          <textarea
+            ref={editRef}
             className="todo-edit-input"
-            autoFocus
+            rows={1}
             value={editVal}
-            onChange={e => setEditVal(e.target.value)}
+            onChange={e => { setEditVal(e.target.value); growEditArea(); }}
             onBlur={commitEdit}
             onKeyDown={handleKeyDown}
           />
@@ -90,12 +113,38 @@ export default function App() {
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retrying, setRetrying] = useState(false);
+  const inputRef = useRef(null);
 
-  // ── Fetch on mount ──
+  // ── Fetch on mount with retry for Render cold start ──
   useEffect(() => {
-    getTodos()
-      .then(data => { setTodos(data); setLoading(false); })
-      .catch(() => { setError("Could not connect to backend."); setLoading(false); });
+    let attempts = 0;
+    const MAX = 5;
+    const DELAY = 10000; // 10 seconds between retries
+
+    const tryFetch = () => {
+      attempts++;
+      getTodos()
+        .then(data => {
+          setTodos(data);
+          setLoading(false);
+          setRetrying(false);
+          setError(null);
+        })
+        .catch(() => {
+          if (attempts < MAX) {
+            setRetrying(true);
+            setError(`Backend is waking up… (attempt ${attempts}/${MAX})`);
+            setTimeout(tryFetch, DELAY);
+          } else {
+            setRetrying(false);
+            setError("Could not connect to backend. Please refresh the page.");
+            setLoading(false);
+          }
+        });
+    };
+
+    tryFetch();
   }, []);
 
   // ── Add ──
@@ -103,6 +152,10 @@ export default function App() {
     const title = input.trim();
     if (!title) return;
     setInput("");
+    // Collapse the textarea back to one line immediately
+    if (inputRef.current) {
+      inputRef.current.style.height = "";
+    }
     try {
       const newTodo = await addTodo(title);
       setTodos(prev => [...prev, newTodo]);
@@ -200,30 +253,42 @@ export default function App() {
           </div>
         )}
 
-        {/* Error */}
+        {/* Error / Retrying toast */}
         {error && (
           <div className="error-toast" role="alert">
-            <span>⚠</span>
+            <span>{retrying ? "⏳" : "⚠"}</span>
             <span>{error}</span>
-            <button
-              style={{ marginLeft: "auto", background: "none", border: "none", color: "inherit", cursor: "pointer" }}
-              onClick={() => setError(null)}
-            >✕</button>
+            {!retrying && (
+              <button
+                style={{ marginLeft: "auto", background: "none", border: "none", color: "inherit", cursor: "pointer" }}
+                onClick={() => setError(null)}
+              >✕</button>
+            )}
           </div>
         )}
 
         {/* Input */}
         <div className="input-row">
-          <input
+          <textarea
+            ref={inputRef}
             id="todo-input"
             className="todo-input"
-            type="text"
+            rows={1}
             placeholder="What needs to get done?"
             value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
+            onChange={e => {
+              setInput(e.target.value);
+              // auto-grow while typing
+              e.target.style.height = "auto";
+              e.target.style.height = e.target.scrollHeight + "px";
+            }}
+            onKeyDown={e => {
+              // Shift+Enter = newline; plain Enter = submit
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAdd(); }
+            }}
             disabled={loading}
             autoComplete="off"
+            style={{ resize: "none", overflow: "hidden" }}
           />
           <button
             id="add-btn"

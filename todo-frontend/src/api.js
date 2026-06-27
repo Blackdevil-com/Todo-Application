@@ -1,6 +1,9 @@
-const BASE = "http://localhost:8081/api/todos";
+const BASE = "https://todo-backend-hu8g.onrender.com/api/todos";
 
 export const getTodos = () => fetch(BASE).then(r => r.json());
+
+export const pingBackend = () =>
+  fetch(BASE, { method: "GET" }).catch(() => {});
 
 export const addTodo = (title) =>
   fetch(BASE, {
